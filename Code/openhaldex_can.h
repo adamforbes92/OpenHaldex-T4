@@ -104,8 +104,8 @@
 #endif
 
 // Custom CAN IDs
-#define OPENHALDEX_BROADCAST_ID 0x7C2
-#define OPENHALDEX_EXTERNAL_CONTROL_ID 0x7C0
+#define OPENHALDEX_BROADCAST_ID 0x6B0
+#define OPENHALDEX_EXTERNAL_CONTROL_ID 0x6A0
 
 #define diagnostics_1_ID 0x764
 #define diagnostics_2_ID 0x200
@@ -127,14 +127,6 @@ void get_lock_data(CAN_message_t &frame);
 
 void onHaldexRX(const CAN_message_t &frame) {
   // A frame was received from the Haldex module - so let's parse it
-#ifdef DEBUG_HALDEXCAN_TRAFFIC
-  DEBUG_("[HDX RX] %03X: ", frame.id);
-  for (uint8_t i = 0; i < frame.len; i++) {
-    DEBUG_("%02X ", frame.buf[i]);
-  }
-  DEBUG("");
-#endif
-
   // Check if the ID corresponds to the "Haldex status" message.
   if (frame.id == HALDEX_ID) {
     // Extract data from the frame.
@@ -213,14 +205,6 @@ void onHaldexRX(const CAN_message_t &frame) {
 void onChassisRX(const CAN_message_t &frame) {
   // Ignore Chassis CAN messages in Standalone mode.
   // A frame was received from the Chassis bus.
-#ifdef DEBUG_CHASSISCAN_TRAFFIC
-  DEBUG_("[CHS RX] %03X: ", frame.id);
-  for (uint8_t i = 0; i < frame.len; i++) {
-    DEBUG_("%02X ", frame.buf[i]);
-  }
-  DEBUG("");
-#endif
-
   // Build a frame for transmitting to Haldex CAN.
   CAN_message_t frame_out;
   frame_out.id = frame.id;
@@ -256,7 +240,6 @@ void onChassisRX(const CAN_message_t &frame) {
 
     case OPENHALDEX_EXTERNAL_CONTROL_ID:
       // If the requested mode is valid, apply it.
-      DEBUG("Got FIS Cuntroller data");
       if (frame.buf[0] < (uint8_t)openhaldex_mode_t_MAX && frame.buf[0] != (uint8_t)MODE_CUSTOM)  // Is it really a problem to accept MODE_CUSTOM from CAN?
       {
         state.mode = (openhaldex_mode_t)frame.buf[0];

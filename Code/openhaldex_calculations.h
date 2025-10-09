@@ -93,10 +93,19 @@ void get_lock_data(CAN_message_t &frame) {
   if (HALDEX_GENERATION == 1) {
     switch (frame.id) {
       case MOTOR1_ID:
-        frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);
-        frame.buf[2] = 0x21;
-        frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);
-        frame.buf[6] = get_lock_target_adjusted_value(0x16, true);
+        //frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);
+        //frame.buf[2] = 0x21;
+        //frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);
+        //frame.buf[6] = get_lock_target_adjusted_value(0x16, true);
+
+        frame.buf[0] = 0x00;                                         // these must play a factor - achieves ~169 without
+        frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);  // rpm low byte
+        frame.buf[2] = 0x21;                                         // rpm high byte
+        frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);  // set RPM to a value so the pre-charge pump runs
+        frame.buf[4] = 0x00;                                         // these must play a factor - achieves ~169 without
+        frame.buf[5] = 0x00;                                         // these must play a factor - achieves ~169 without
+        frame.buf[6] = get_lock_target_adjusted_value(0x16, false);  // set to a low value to control the req. transfer torque.  Main control value for Gen1
+        frame.buf[7] = 0x00;                                         // these must play a factor - achieves ~169 without
         break;
       case MOTOR3_ID:
         frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);

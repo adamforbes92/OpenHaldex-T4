@@ -18,7 +18,7 @@ Version History:
 #define BROADCAST_OPENHALDEX     // For FIS/aftermarket ECU/etc support.  Broadcasts OpenHaldex (& Haldex) data via. 0x7B0.  Comment out to disable
 
 // Debug (comment out to disable)
-//#define ENABLE_DEBUG  // Enable Serial debug.  Comment out to disable
+#define ENABLE_DEBUG  // Enable Serial debug.  Comment out to disable
 //#define DEBUG_HALDEXCAN_TRAFFIC   // Enable printing of Haldex CAN Traffic.  Comment out to disable
 //#define DEBUG_CHASSISCAN_TRAFFIC  // Enable printing of Chassis CAN Traffic.  Comment out to disable
 
