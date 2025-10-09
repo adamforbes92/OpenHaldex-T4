@@ -47,6 +47,7 @@ void init_GPIO() {
 
   // If the Bluetooth Configuration button is held at startup, flash the Haldex Generation number.
   if (digitalRead(GPIO_BT_CONF_BUTTON)) {
+    DEBUG("Show Haldex Ver.");
     blinkLED(2000, HALDEX_GENERATION, 255, 0, 0);
 
     // Holding the Bluetooth Configuration button causes the HC-05 to go into AT mode.

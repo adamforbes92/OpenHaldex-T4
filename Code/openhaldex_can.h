@@ -172,6 +172,24 @@ void onHaldexRX(const CAN_message_t &frame) {
         DEBUG("    Mapped haldexEngagement: %d", map(frame.buf[1] + frame.buf[4], 128, 255, 0, 100));
 #endif
         break;
+
+      case 4:
+        received_haldex_state = frame.buf[0];
+        received_haldex_engagement = frame.buf[1] + frame.buf[4];
+
+        // Decode the state byte.
+        received_report_clutch1 = (received_haldex_state & (1 << 0));
+        received_temp_protection = (received_haldex_state & (1 << 1));
+        received_report_clutch2 = (received_haldex_state & (1 << 2));
+        received_coupling_open = (received_haldex_state & (1 << 3));
+        received_speed_limit = (received_haldex_state & (1 << 6));
+#ifdef DEBUG_HALDEXCAN_TRAFFIC
+        DEBUG("    BIN haldexState: " BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(frame.buf[0]));
+        DEBUG("    Raw haldexEngagement: %d", frame.buf[1]);
+        DEBUG("    Mapped haldexEngagement: %d", map(frame.buf[1] + frame.buf[4], 128, 255, 0, 100));
+#endif
+        break;
+
       default:
         break;
     }
@@ -211,7 +229,7 @@ void onChassisRX(const CAN_message_t &frame) {
   memcpy(frame_out.buf, frame.buf, frame.len);
 
   // if in standalone, check to make sure that the incoming data isn't diag
-  // > if it is, allow the thread to continue (as it'll be ignored further on and then forwared on).
+  // > if it is, allow the thread to continue (as it'll be ignored further on and then forwarded on).
   // > if it isn't and NOT diag, return / skip this module
   if (in_standalone_mode) {
     switch (frame.id) {
@@ -278,9 +296,9 @@ void onChassisRX(const CAN_message_t &frame) {
 void init_CAN() {
   // Initialize the Haldex CAN bus.
   HaldexCAN.begin();
-  HaldexCAN.setClock(CLK_60MHz);
+  //HaldexCAN.setClock(CLK_60MHz);
   HaldexCAN.setBaudRate(500000);
-  HaldexCAN.setMaxMB(16);
+  HaldexCAN.setMaxMB(64);
   HaldexCAN.onReceive(onHaldexRX);
   HaldexCAN.enableFIFO();
   HaldexCAN.enableFIFOInterrupt();
@@ -290,9 +308,9 @@ void init_CAN() {
 
   // Initialize the Chassis CAN bus.
   ChassisCAN.begin();
-  ChassisCAN.setClock(CLK_60MHz);
+  //ChassisCAN.setClock(CLK_60MHz);
   ChassisCAN.setBaudRate(500000);
-  ChassisCAN.setMaxMB(16);
+  ChassisCAN.setMaxMB(64);
   ChassisCAN.onReceive(onChassisRX);
   ChassisCAN.enableFIFO();
   ChassisCAN.enableFIFOInterrupt();
@@ -640,7 +658,7 @@ bool send_standalone_CAN(void *params) {
         send_standalone_frame_Gen2();
         break;
       case 4:
-        send_standalone_frame_Gen4();
+        //send_standalone_frame_Gen4();
         break;
       default:
         break;
@@ -650,7 +668,7 @@ bool send_standalone_CAN(void *params) {
 }
 
 bool reset_CAN() {
-  // Gen2 doesn't like a missing CAN message, so disable, allow bus to rest for 500ms and restart.  
+  // Gen2 doesn't like a missing CAN message, so disable, allow bus to rest for 500ms and restart.
   // todo: look into understanding WHAT the issue is here...
   if (HALDEX_GENERATION == 2) {
     HaldexCAN.reset();

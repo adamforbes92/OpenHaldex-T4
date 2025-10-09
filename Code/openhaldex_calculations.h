@@ -122,27 +122,26 @@ void get_lock_data(CAN_message_t &frame) {
     // Edit the frames if configured as Gen2.  Currently copied from Gen4...
     switch (frame.id) {
       case MOTOR1_ID:
-        //frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);
-        //frame.buf[2] = 0x21;
-        //frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);
-        //frame.buf[6] = get_lock_target_adjusted_value(0xFE, false);
+        frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);
+        frame.buf[2] = 0x21;
+        frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);
+        frame.buf[6] = get_lock_target_adjusted_value(0xFE, false);
         break;
       case MOTOR3_ID:
-        //frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);
-        //frame.buf[7] = get_lock_target_adjusted_value(0x01, false);  // gen1 is 0xFE, gen4 is 0x01
+        frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);
+        frame.buf[7] = get_lock_target_adjusted_value(0x01, false);  // gen1 is 0xFE, gen4 is 0x01
         break;
       case MOTOR6_ID:
         break;
       case BRAKES1_ID:
-        //frame.buf[0] = get_lock_target_adjusted_value(0x80, false);
-        //frame.buf[1] = get_lock_target_adjusted_value(0x41, false);
-        //frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);  // gen1 is 0x00, gen4 is 0xFE
-        //frame.buf[3] = 0x0A;
+        frame.buf[0] = get_lock_target_adjusted_value(0x80, false);
+        frame.buf[1] = get_lock_target_adjusted_value(0x41, false);
+        frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);  // gen1 is 0x00, gen4 is 0xFE
+        frame.buf[3] = 0x0A;
         break;
       case BRAKES2_ID:
         frame.buf[4] = get_lock_target_adjusted_value(0x7F, false);  // big affect(!) 0x7F is max
         frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // no effect.  Was 0x6E
-        HaldexCAN.write(frame);
         break;
       case BRAKES3_ID:
         frame.buf[0] = get_lock_target_adjusted_value(0xFE, false);
@@ -179,7 +178,6 @@ void get_lock_data(CAN_message_t &frame) {
       case BRAKES2_ID:
         frame.buf[4] = get_lock_target_adjusted_value(0x7F, false);  // big affect(!) 0x7F is max
         frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // no effect.  Was 0x6E
-        HaldexCAN.write(frame);
         break;
       case BRAKES3_ID:
         frame.buf[0] = get_lock_target_adjusted_value(0xFE, false);
