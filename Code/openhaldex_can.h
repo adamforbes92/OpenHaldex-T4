@@ -16,9 +16,8 @@
 #define BRAKES5_ID 0x5A0
 #define GRA_ID 0x38A
 #define HALDEX_ID 0x2C0
-
-#define BRAKES4_ID 0x2A0   // DLC 3 x
-#define BRAKES5_ID 0x4A8   // DLC 8 x
+#define BRAKES4_ID 0x2A0  // DLC 3 x
+//#define BRAKES5_ID 0x4A8   // DLC 8 x
 #define BRAKES6_ID 0x1A8   // DLC 3 x
 #define BRAKES8_ID 0x1AC   // DLC 8 x
 #define BRAKES9_ID 0x0AE   // DLC 8
@@ -35,8 +34,9 @@
 #define mLW_1 0x0C2         // DLC 7
 #define mLenkhilfe_1 0x3D0  // DLC 6
 #define mLenkhilfe_2 0x3D2  // DLC 6
+#endif
 
-#elif (HALDEX_GENERATION == 2)  // CAN IDs for Gen2
+#if (HALDEX_GENERATION == 2)  // CAN IDs for Gen2
 #define MOTOR1_ID 0x280
 #define MOTOR2_ID 0x288
 #define MOTOR3_ID 0x380
@@ -68,14 +68,16 @@
 #define mLW_1 0x0C2         // DLC 7
 #define mLenkhilfe_1 0x3D0  // DLC 6
 #define mLenkhilfe_2 0x3D2  // DLC 6
+#endif
 
-#elif (HALDEX_GENERATION == 4)  // CAN IDs for Gen4
+#if (HALDEX_GENERATION == 4)  // CAN IDs for Gen4
 #define MOTOR1_ID 0x280
 #define MOTOR2_ID 0x288
 #define MOTOR3_ID 0x380
 #define MOTOR5_ID 0x480
 #define MOTOR6_ID 0x488
 #define MOTOR7_ID 0x588
+#define MOTOR8_ID 0x48A
 #define MOTORBREMS_ID 0x284
 #define MOTOR_FLEX_ID 0x580
 #define BRAKES1_ID 0x1A0   // DLC 8 x
@@ -91,16 +93,34 @@
 
 #define GRA_ID 0x38A
 #define HALDEX_ID 0x2C0
-#define KOMBI1_ID 0x320
-#define KOMBI2_ID 0x420
-#define KOMBI3_ID 0x520
-#define KOMFORT_ID 0x390
-#define mBSG_Last 0x570  // DLC 5
+
 #define ZAS_ID 0x573
+#define GATEWAY_ID 0x720
+#define mGetriebe_1 0x440
+#define mGetriebe_2 0x540
+#define mGetriebe_4 0x548
+#define mGetriebe_5 0x542
+#define mGetriebe_6 0x44C
+#define mGetriebe_7 0x544
+#define mGetriebe_8 0x450
+#define mGetriebe_9 0x454
 
 #define mLW_1 0x0C2         // DLC 7
 #define mLenkhilfe_1 0x3D0  // DLC 6
 #define mLenkhilfe_2 0x3D2  // DLC 6
+#define mLenkhilfe_3 0x0D0  // DLC 6
+
+#define mGate_Komf_1 0x390           // DLC 8 100ms
+#define mGate_Komf_2 0x392           // DLC 8/(4) 100ms
+#define mGate_Komf_3 0x393           // DLC 8/ 200ms
+#define mBSG_Last 0x570              // DLC 5 100ms
+#define mDiagnose_1 0x7D0            // DLC 8 1000ms
+#define mSoll_Verbauliste_neu 0x5DC  // DLC 8 100ms
+#define mSysteminfo_1 0x5D0          // DLC 8(6) 100ms
+#define NMH_Gateway 0x720            // DLC 7 200ms
+#define mKombi_1 0x320
+#define mKombi_2 0x420
+#define mKombi_3 0x520
 #endif
 
 // Custom CAN IDs
@@ -167,7 +187,7 @@ void onHaldexRX(const CAN_message_t &frame) {
 
       case 4:
         received_haldex_state = frame.buf[0];
-        received_haldex_engagement = frame.buf[1] + frame.buf[4];
+        received_haldex_engagement = map(frame.buf[1], 0, 255, 0, 100);
 
         // Decode the state byte.
         received_report_clutch1 = (received_haldex_state & (1 << 0));
@@ -178,7 +198,7 @@ void onHaldexRX(const CAN_message_t &frame) {
 #ifdef DEBUG_HALDEXCAN_TRAFFIC
         DEBUG("    BIN haldexState: " BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(frame.buf[0]));
         DEBUG("    Raw haldexEngagement: %d", frame.buf[1]);
-        DEBUG("    Mapped haldexEngagement: %d", map(frame.buf[1] + frame.buf[4], 128, 255, 0, 100));
+        DEBUG("    Mapped haldexEngagement: %d", map(frame.buf[1], 128, 255, 0, 100));
 #endif
         break;
 
@@ -327,7 +347,9 @@ bool broadcast_openhaldex(void *params) {
 }
 
 void send_standalone_frame_Gen1() {
-  // Get initial lock target.
+// Get initial lock target.
+#if (HALDEX_GENERATION == 1)
+
   lock_target = get_lock_target_adjustment();
   if (state.mode == MODE_7525) {
     lock_target = 30;
@@ -386,9 +408,11 @@ void send_standalone_frame_Gen1() {
   frame.buf[6] = 0x00;
   frame.buf[7] = 0x0A;
   HaldexCAN.write(frame);
+#endif
 }
 
 void send_standalone_frame_Gen2() {
+#if (HALDEX_GENERATION == 2)
   // Get initial lock target.
   lock_target = get_lock_target_adjustment();
   if (state.mode == MODE_7525) {
@@ -619,11 +643,498 @@ void send_standalone_frame_Gen2() {
   frame.buf[5] = 0x00;  // no effect
   HaldexCAN.write(frame);
   */
+
+#endif
 }
 
 void send_standalone_frame_Gen4() {
-  send_standalone_frame_Gen2();
-  //TODO: in development so send Gen2 as a basis
+  //send_standalone_frame_Gen2();
+  //20ms frames
+
+#if (HALDEX_GENERATION == 4)
+  lock_target = get_lock_target_adjustment();
+  if (state.mode == MODE_7525) {
+    lock_target = 30;
+  }
+
+  CAN_message_t frame;
+  frame.id = mLW_1;                        // electronic power steering 0x0C2
+  frame.len = 8;                           // DLC 8
+  frame.buf[0] = lws_2[mLW_1_counter][0];  // angle of turn (block 011) low byte
+  frame.buf[1] = lws_2[mLW_1_counter][1];  // no effect B high byte
+  frame.buf[2] = lws_2[mLW_1_counter][2];  // no effect C
+  frame.buf[3] = lws_2[mLW_1_counter][3];  // no effect D
+  frame.buf[4] = lws_2[mLW_1_counter][4];  // rate of change (block 010) was 0x00
+  frame.buf[5] = lws_2[mLW_1_counter][5];  // no effect F
+  frame.buf[6] = lws_2[mLW_1_counter][6];  // no effect F
+  frame.buf[7] = lws_2[mLW_1_counter][7];  // no effect F
+  mLW_1_counter++;
+  if (mLW_1_counter > 15) {
+    mLW_1_counter = 0;
+  }
+  HaldexCAN.write(frame);
+
+  frame.id = BRAKES1_ID;           // 0x1A0
+  frame.len = 8;                   // DLC 8
+  frame.buf[0] = 0x20;             // ASR 0x04 sets bit 4.  0x08 removes set.  Coupling open/closed
+  frame.buf[1] = 0x40;             // can use to disable (>130 dec).  Was 0x00; 0x41?  0x43?
+  frame.buf[2] = 0xF0;             // was 0x00 no effect
+  frame.buf[3] = 0x07;             // was 0xFE no effect
+  frame.buf[4] = 0xFE;             // was 0xFE miasrl no effect
+  frame.buf[5] = 0xFE;             // was 0xFE miasrs no effect
+  frame.buf[6] = 0x00;             // was 0x00
+  frame.buf[7] = BRAKES1_counter;  // checksum
+  if (++BRAKES1_counter > 0x1F) {  // 0xF
+    BRAKES1_counter = 10;          // 0
+  }
+  HaldexCAN.write(frame);
+
+  /*
+  Bremse 3 has massive effect - deviation between front/rear = block 011 'rpm changing'
+  too high a speed causes 'pulsing'
+  slip control changes from 0 to 1 IF rear > front
+  */
+  frame.id = BRAKES3_ID;                                       // 0x4A0 - deviation between front/rear = block 011 'rpm'
+  frame.len = 8;                                               // DLC 8
+  frame.buf[0] = 0xB6;                                         // front left low
+  frame.buf[1] = 0x07;                                         // front left high
+  frame.buf[2] = 0xCC;                                         // front right low
+  frame.buf[3] = 0x07;                                         // front right high
+  frame.buf[4] = get_lock_target_adjusted_value(0xD2, false);  // rear left low
+  frame.buf[5] = 0x07;                                         // rear left high
+  frame.buf[6] = get_lock_target_adjusted_value(0xD2, false);  // rear right low
+  frame.buf[7] = 0x07;                                         // rear right high
+  HaldexCAN.write(frame);
+
+  frame.id = BRAKES4_ID;                                       // 0x2A0 includes coupling moment? Affects vehicle mode(!) do not have!
+  frame.len = 8;                                               // DLC 8 (/4)
+  frame.buf[0] = get_lock_target_adjusted_value(0xFE, false);  // affects estimated torque AND vehicle mode(!)
+  frame.buf[1] = 0x00;                                         //
+  frame.buf[2] = 0x00;                                         //
+  frame.buf[3] = 0x64;                                         // 32605
+  frame.buf[4] = 0x00;                                         //
+  frame.buf[5] = 0x00;                                         //
+  frame.buf[6] = BRAKES4_counter;                              // checksum
+  BRAKES4_crc = 0;
+  for (uint8_t i = 0; i < 7; i++) {
+    BRAKES4_crc ^= frame.buf[i];
+  }
+  frame.buf[7] = BRAKES4_crc;
+
+  BRAKES4_counter = BRAKES4_counter + 16;
+  if (BRAKES4_counter > 0xF0) {
+    BRAKES4_counter = 0x00;
+  }
+  HaldexCAN.write(frame);
+
+  frame.id = BRAKES9_ID;            // 0x0AE do not have!
+  frame.len = 8;                    // DLC 8
+  frame.buf[0] = BRAKES9_counter;   // checksum
+  frame.buf[1] = BRAKES9_counter2;  // checksum
+  frame.buf[2] = 0x00;              // no effect
+  frame.buf[3] = 0x00;              // no effect
+  frame.buf[4] = 0x00;              // no effect
+  frame.buf[5] = 0x00;              // no effect
+  frame.buf[6] = 0x03;              // 0x01
+  frame.buf[7] = 0x00;              // no effect
+  HaldexCAN.write(frame);
+  BRAKES9_counter = BRAKES9_counter + 16;
+  if (BRAKES9_counter > 0xF3) {
+    BRAKES9_counter = 0x03;
+  }
+  BRAKES9_counter2 = BRAKES9_counter2 + 16;
+  if (BRAKES9_counter2 > 0xF0) {
+    BRAKES9_counter2 = 0x00;
+  }
+
+  frame.id = MOTOR1_ID;  // 0x280 - needs this
+  frame.len = 8;
+  frame.buf[0] = 0x01;                                         // various bits no effect 0x08
+  frame.buf[1] = 0xFE;                                         // MDNORM no effect x
+  frame.buf[2] = 0x20;                                         // RPM low byte no effect was 0x20
+  frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);  // RPM high byte.  Will disable pre-charge pump if 0x00.  Sets raw = 8, coupling open
+  frame.buf[4] = 0xFE;                                         // MDNORM no effect
+  frame.buf[5] = 0xFE;                                         // Pedal no effect
+  frame.buf[6] = get_lock_target_adjusted_value(0x20, false);  // idle adaptation?  Was slippage?
+  frame.buf[7] = get_lock_target_adjusted_value(0xFE, false);  // Fahrerwunschmoment req. torque?
+  HaldexCAN.write(frame);
+
+  /*
+  frame.id = MOTOR3_ID;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x20;  // various bits
+  frame.buf[1] = 0x84;  // outside temp
+  frame.buf[2] = 0xFE;  //Pedal
+  frame.buf[3] = 0xFE;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0xFE;  //Pedal
+  frame.buf[5] = 0xFE;  //Pedal
+  frame.buf[6] = 0x00;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x00;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+
+  frame.id = MOTOR6_ID;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x6A;             // various bits
+  frame.buf[1] = 0x11;             // outside temp
+  frame.buf[2] = 0x0F;             //Pedal
+  frame.buf[3] = 0x7A;             //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0xFE;             //Pedal
+  frame.buf[5] = 0xFF;             //Pedal
+  frame.buf[6] = 0xFF;             // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = MOTOR6_counter2;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+  MOTOR6_counter = MOTOR6_counter - 16;
+  if (MOTOR6_counter < 0x0E) {
+    MOTOR6_counter = 254;  // there is a sum here!
+  }
+  MOTOR6_counter2 = MOTOR6_counter2 + 16;
+  if (MOTOR6_counter2 > 0xF0) {
+    MOTOR6_counter2 = 0;
+  }
+
+  // added in:
+  frame.id = 0x1AC;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x1C;  // various bits
+  frame.buf[1] = 0x03;  // outside temp
+  frame.buf[2] = 0x00;  //Pedal
+  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0x0C;  //Pedal
+  frame.buf[5] = 0x01;  //Pedal
+  frame.buf[6] = 0x00;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x12;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+  */
+
+  /*
+  frame.id = BRAKES10_ID;           // 0x3A0
+  frame.len = 8;                    // DLC 8
+  frame.buf[0] = tempCounter2;      // no effect
+  frame.buf[1] = BRAKES10_counter;  // checksum
+  frame.buf[2] = tempCounter2;      // no effect
+  frame.buf[3] = tempCounter2;      // no effect
+  frame.buf[4] = tempCounter2;      // no effect
+  frame.buf[5] = tempCounter2;      // no effect
+  frame.buf[6] = tempCounter2;      // no effect
+  frame.buf[7] = tempCounter2;      // no effect
+  HaldexCAN.write(frame);
+  BRAKES10_counter = BRAKES10_counter + 1;
+  if (BRAKES10_counter > 0xF) {
+    BRAKES10_counter = 0;
+  }
+  */
+
+  frame.id = BRAKES2_ID;                                       // 0x5A0
+  frame.len = 8;                                               // DLC 8
+  frame.buf[0] = 0x80;                                         // various bits // was 7E
+  frame.buf[1] = 0x7A;                                         // outside temp no effect
+  frame.buf[2] = 0x05;                                         // Pedal no effect
+  frame.buf[3] = BRAKES2_counter;                              // checksum changing
+  frame.buf[4] = get_lock_target_adjusted_value(0x7F, false);  // big affect(!) 0x7F is max
+  frame.buf[5] = 0xCA;                                         // no effect.  Was 0x6E
+  frame.buf[6] = 0x1B;                                         // no effect.  Was 0x70 - can cause 'Operating Mode Malfunction'(!) Includes Emergency Mode and Control Module Error
+  frame.buf[7] = 0xAB;                                         // no effect.  gen1 is FE, Gen4 is 01 was AB - can cause 'Operating Mode Malfunction'(!)
+  HaldexCAN.write(frame);
+  BRAKES2_counter = BRAKES2_counter + 16;
+  if (BRAKES2_counter > 0xF0) {
+    BRAKES2_counter = 0;
+  }
+
+  /*
+  frame.id = BRAKES5_ID;  // 0x4A8 EPB, ESP? wants to see this
+  frame.len = 8;
+  frame.buf[0] = 0x48;              // no effect
+  frame.buf[1] = 0x00;              // no effect
+  frame.buf[2] = 0x07;              // no effect
+  frame.buf[3] = 0x80;              // no effect
+  frame.buf[4] = 0x00;              // no effect
+  frame.buf[5] = 0x00;              // no effect
+  frame.buf[6] = BRAKES5_counter;   // checksum
+  frame.buf[7] = BRAKES5_counter2;  // no checksum?
+  HaldexCAN.write(frame);
+  BRAKES5_counter = BRAKES5_counter + 16;
+  if (BRAKES5_counter > 0xF4) {
+    BRAKES5_counter = 0x04;
+  }
+  BRAKES5_counter2 = BRAKES5_counter2 + 10;
+  if (BRAKES5_counter2 > 0xF3) {
+    BRAKES5_counter2 = 3;
+  }
+
+  frame.id = BRAKES8_ID;           // 0x4A0 - deviation between front/rear = block 011 'rpm'
+  frame.len = 8;                   // DLC 8
+  frame.buf[0] = 0x1C;             // front left low
+  frame.buf[1] = BRAKES8_counter;  // front left high
+  frame.buf[2] = 0x00;             // front right low
+  frame.buf[3] = 0x00;             // front right high
+  frame.buf[4] = 0x0C;             // rear left low
+  frame.buf[5] = 0x01;             // rear left high
+  frame.buf[6] = 0x00;             // rear right low
+  frame.buf[7] = 0x12;             // rear right high
+  HaldexCAN.write(frame);
+  BRAKES8_counter = BRAKES8_counter + 16;
+  if (BRAKES8_counter > 0xF0) {
+    BRAKES8_counter = 0x00;
+  }
+
+  frame.id = MOTOR2_ID;  // needs this - just fill with default data
+  frame.len = 8;
+  frame.buf[0] = 0x00;  // no effect mux code
+  frame.buf[1] = 0x30;  // no effect motor temperature
+  frame.buf[2] = 0x20;  // bremse - does affect (coupling open etc)
+  frame.buf[3] = 0x00;  // no effect speed (act)
+  frame.buf[4] = 0x00;  // no effect speed (cruise?)
+  frame.buf[5] = 0x00;  // no effect idle rpm
+  frame.buf[6] = 0xFA;  // no effect torque
+  frame.buf[7] = 0xFA;  //no effect torque
+  HaldexCAN.write(frame);
+
+  frame.id = MOTOR5_ID;  // 0x480 needs this - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x84;  // no effect max torque
+  frame.buf[1] = 0x20;  // no effect epc, eml,
+  frame.buf[2] = 0xDF;  // no effect
+  frame.buf[3] = 0x62;  // no effect
+  frame.buf[4] = 0x55;  // no effect tvluesic PWM interface?
+  frame.buf[5] = 0x00;  // no effect
+  frame.buf[6] = 0x02;  // no effect
+  frame.buf[7] = 0x4E;  // no effect checksum
+  HaldexCAN.write(frame);
+  if (++MOTOR5_counter > 255) {
+    MOTOR5_counter = 0;
+  }
+
+  frame.id = MOTOR7_ID;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0xE8;  // various bits
+  frame.buf[1] = 0x6C;  // outside temp
+  frame.buf[2] = 0x7A;  //Pedal
+  frame.buf[3] = 0x89;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0x00;  //Pedal
+  frame.buf[5] = 0x01;  //Pedal
+  frame.buf[6] = 0x04;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x8C;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+
+  frame.id = mLenkhilfe_1;  // doesn't throw code with this out - no effect on any block
+  frame.len = 6;
+  frame.buf[0] = 0x00;  // various bits
+  frame.buf[1] = 0x00;  // outside temp
+  frame.buf[2] = 0x08;  //Pedal
+  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0xC8;  //Pedal
+  frame.buf[5] = 0x69;  //Pedal
+  HaldexCAN.write(frame);
+
+  frame.id = 0x0D0;  // doesn't throw code with this out - no effect on any block
+  frame.len = 6;
+  frame.buf[0] = 0x03;  // various bits
+  frame.buf[1] = 0xF5;  // outside temp
+  frame.buf[2] = 0x08;  //Pedal
+  frame.buf[3] = 0x38;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0x26;  //Pedal
+  frame.buf[5] = 0xE0;  //Pedal
+  HaldexCAN.write(frame);
+
+  frame.id = 0x448;  // doesn't throw code with this out - no effect on any block
+  frame.len = 5;
+  frame.buf[0] = 0x52;  // various bits
+  frame.buf[1] = 0x00;  // outside temp
+  frame.buf[2] = 0x00;  //Pedal
+  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0xA0;  //Pedal
+  HaldexCAN.write(frame);
+
+  frame.id = 0x440;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x00;  // various bits
+  frame.buf[1] = 0x52;  // outside temp
+  frame.buf[2] = 0x5D;  //Pedal
+  frame.buf[3] = 0xFE;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0x7F;  //Pedal
+  frame.buf[5] = 0x00;  //Pedal
+  frame.buf[6] = 0x80;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x03;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+
+  frame.id = 0x540;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x05;  // various bits
+  frame.buf[1] = 0x00;  // outside temp
+  frame.buf[2] = 0xFF;  //Pedal
+  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0xFF;  //Pedal
+  frame.buf[5] = 0x00;  //Pedal
+  frame.buf[6] = 0x02;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x56;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+
+  frame.id = 0x594;  // doesn't throw code with this out - no effect on any block
+  frame.len = 8;
+  frame.buf[0] = 0x4D;  // various bits
+  frame.buf[1] = 0x19;  // outside temp
+  frame.buf[2] = 0x5A;  //Pedal
+  frame.buf[3] = 0xA8;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
+  frame.buf[4] = 0x59;  //Pedal
+  frame.buf[5] = 0xFE;  //Pedal
+  frame.buf[6] = 0x7A;  // 100 in dec, *25 = 2500rpm was 0x64
+  frame.buf[7] = 0x7B;  // gen1 is FE, Gen4 WAS 01
+  HaldexCAN.write(frame);
+  */
+
+  // 25ms frames
+  frame.id = mKombi_1;  // kombi 1
+  frame.len = 8;        // DLC 8
+  frame.buf[0] = 0x24;  // angle of turn (block 011) low byte
+  frame.buf[1] = 0x00;  // no effect B high byte
+  frame.buf[2] = 0x1D;  // no effect C
+  frame.buf[3] = 0xB9;  // no effect D
+  frame.buf[4] = 0x07;  // rate of change (block 010)
+  frame.buf[5] = 0x42;  // rate of change (block 010) checksum?
+  frame.buf[6] = 0x09;  // rate of change (block 010)
+  frame.buf[7] = 0x81;  // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = mKombi_3;  // 0x520 - kombi 3
+  frame.len = 8;        // DLC 8
+  frame.buf[0] = 0x60;  // angle of turn (block 011) low byte
+  frame.buf[1] = 0x43;  // no effect B high byte
+  frame.buf[2] = 0x01;  // no effect C
+  frame.buf[3] = 0x10;  // no effect D
+  frame.buf[4] = 0x66;  // rate of change (block 010)
+  frame.buf[5] = 0xF1;  // rate of change (block 010) checksum?
+  frame.buf[6] = 0x03;  // rate of change (block 010)
+  frame.buf[7] = 0x02;  // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  /*
+  frame.id = 0x394;     // electronic power steering 0x0C2
+  frame.len = 8;        // DLC 8
+  frame.buf[0] = 0x0F;  // angle of turn (block 011) low byte
+  frame.buf[1] = 0x14;  // no effect B high byte
+  frame.buf[2] = 0x7F;  // no effect C
+  frame.buf[3] = 0xE0;  // no effect D
+  frame.buf[4] = 0x7D;  // rate of change (block 010)
+  frame.buf[5] = 0xD0;  // rate of change (block 010) checksum?
+  frame.buf[6] = 0x00;  // rate of change (block 010)
+  frame.buf[7] = 0x90;  // rate of change (block 010)
+  HaldexCAN.write(frame);
+  */
+
+  // 100ms frames
+  frame.id = mGate_Komf_1;  // electronic power steering 0x0C2
+  frame.len = 8;            // DLC 8
+  frame.buf[0] = 0x03;      // angle of turn (block 011) low byte
+  frame.buf[1] = 0x11;      // no effect B high byte
+  frame.buf[2] = 0x58;      // no effect C
+  frame.buf[3] = 0x00;      // no effect D
+  frame.buf[4] = 0x40;      // rate of change (block 010)
+  frame.buf[5] = 0x00;      // rate of change (block 010)
+  frame.buf[6] = 0x01;      // rate of change (block 010)
+  frame.buf[7] = 0x08;      // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = mGate_Komf_2;  // electronic power steering 0x0C2
+  frame.len = 8;            // DLC 8
+  frame.buf[0] = 0x09;      // angle of turn (block 011) low byte
+  frame.buf[1] = 0x01;      // no effect B high byte
+  frame.buf[2] = 0x00;      // no effect C
+  frame.buf[3] = 0xA1;      // no effect D
+  frame.buf[4] = 0x00;      // rate of change (block 010)
+  frame.buf[5] = 0x00;      // rate of change (block 010)
+  frame.buf[6] = 0x00;      // rate of change (block 010)
+  frame.buf[7] = 0x00;      // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = mSysteminfo_1;  // electronic power steering 0x0C2
+  frame.len = 6;             // DLC 8
+  frame.buf[0] = 0xC0;       // angle of turn (block 011) low byte
+  frame.buf[1] = 0x03;       // no effect B high byte
+  frame.buf[2] = 0x50;       // no effect C
+  frame.buf[3] = 0xBF;       // no effect D
+  frame.buf[4] = 0x37;       // rate of change (block 010)
+  frame.buf[5] = 0x56;       // rate of change (block 010)
+  frame.buf[6] = 0xC0;       // rate of change (block 010)
+  frame.buf[7] = 0x00;       // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = mSoll_Verbauliste_neu;  // electronic power steering 0x0C2
+  frame.len = 8;                     // DLC 8
+  frame.buf[0] = 0xF7;               // angle of turn (block 011) low byte
+  frame.buf[1] = 0x42;               // no effect B high byte
+  frame.buf[2] = 0x70;               // no effect C
+  frame.buf[3] = 0x3F;               // no effect D
+  frame.buf[4] = 0x1C;               // rate of change (block 010)
+  frame.buf[5] = 0x08;               // rate of change (block 010)
+  frame.buf[6] = 0x00;               // rate of change (block 010)
+  frame.buf[7] = 0xC8;               // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = BRAKES11_ID;  // 0x3A0
+  frame.len = 8;           // DLC 8
+  frame.buf[0] = 0x00;     // no effect
+  frame.buf[1] = 0XC0;     // checksum
+  frame.buf[2] = 0x00;     // no effect
+  frame.buf[3] = 0x00;     // no effect
+  frame.buf[4] = 0x00;     // no effect
+  frame.buf[5] = 0x00;     // no effect
+  frame.buf[6] = 0x00;     // no effect
+  frame.buf[7] = 0x00;     // no effect
+  HaldexCAN.write(frame);
+
+  // 200ms frames
+  frame.id = mKombi_2;  // electronic power steering 0x0C2
+  frame.len = 8;        // DLC 8
+  frame.buf[0] = 0x4C;  // angle of turn (block 011) low byte
+  frame.buf[1] = 0x86;  // no effect B high byte
+  frame.buf[2] = 0x85;  // no effect C
+  frame.buf[3] = 0x00;  // no effect D
+  frame.buf[4] = 0x00;  // rate of change (block 010)
+  frame.buf[5] = 0x30;  // rate of change (block 010)
+  frame.buf[6] = 0xFF;  // rate of change (block 010)
+  frame.buf[7] = 0x04;  // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = mKombi_3;  // electronic power steering 0x0C2
+  frame.len = 8;        // DLC 8
+  frame.buf[0] = 0xA6;  // angle of turn (block 011) low byte checksum?
+  frame.buf[1] = 0x87;  // no effect B high bytechecksum?
+  frame.buf[2] = 0x01;  // no effect C
+  frame.buf[3] = 0x10;  // no effect D
+  frame.buf[4] = 0x66;  // rate of change (block 010)
+  frame.buf[5] = 0xF2;  // rate of change (block 010)
+  frame.buf[6] = 0x03;  // rate of change (block 010)
+  frame.buf[7] = 0x02;  // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  frame.id = NMH_Gateway;  // electronic power steering 0x0C2
+  frame.len = 7;           // DLC 8
+  frame.buf[0] = 0x04;     // angle of turn (block 011) low byte
+  frame.buf[1] = 0x03;     // no effect B high byte
+  frame.buf[2] = 0x01;     // no effect C
+  frame.buf[3] = 0x00;     // no effect D
+  frame.buf[4] = 0x02;     // rate of change (block 010)
+  frame.buf[5] = 0x00;     // rate of change (block 010)
+  frame.buf[6] = 0x00;     // rate of change (block 010)
+  HaldexCAN.write(frame);
+
+  // 1000ms frames
+  frame.id = mDiagnose_1;              // electronic power steering 0x0C2
+  frame.len = 8;                       // DLC 8
+  frame.buf[0] = 0x26;                 // angle of turn (block 011) low byte
+  frame.buf[1] = 0xF2;                 // no effect B high byte
+  frame.buf[2] = 0x03;                 // no effect C
+  frame.buf[3] = 0x12;                 // no effect D
+  frame.buf[4] = 0x70;                 // rate of change (block 010)
+  frame.buf[5] = 0x19;                 // rate of change (block 010)
+  frame.buf[6] = 0x25;                 // rate of change (block 010)
+  frame.buf[7] = mDiagnose_1_counter;  // rate of change (block 010) checksum?
+  HaldexCAN.write(frame);
+  mDiagnose_1_counter++;
+  if (mDiagnose_1_counter > 0x1F) {
+    mDiagnose_1_counter = 0;
+  }
+#endif
 }
 
 bool send_standalone_CAN(void *params) {
@@ -641,13 +1152,13 @@ bool send_standalone_CAN(void *params) {
         send_standalone_frame_Gen2();
         break;
       case 4:
-        //send_standalone_frame_Gen4();
+        send_standalone_frame_Gen4();
         break;
       default:
         break;
     }
   }
-  return true;
+  return false;
 }
 
 bool reset_CAN() {

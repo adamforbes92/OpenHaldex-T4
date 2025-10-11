@@ -22,8 +22,7 @@
 bool reset_CAN();
 
 // HC-05 configuration commands
-const char *AT_commands[] =
-{
+const char *AT_commands[] = {
   "AT",
   "AT+UART=19200,0,0",
   "AT+NAME=OpenHaldexT4",
@@ -42,8 +41,7 @@ bool custom_mode_available = false;
 
 // Functions
 
-void config_BT()
-{
+void config_BT() {
   DEBUG("Configuring Bluetooth");
 
   // Turn the LED off (the HC-05 uses a lot of current on setup).
@@ -66,8 +64,7 @@ void config_BT()
   BT.begin(38400);
 
   // Send each AT command from the array.
-  for (size_t i = 0; i < ARRAYSIZE(AT_commands); i++)
-  {
+  for (size_t i = 0; i < ARRAYSIZE(AT_commands); i++) {
     DEBUG("HC-05 AT: %s", AT_commands[i]);
     BT.println(AT_commands[i]);
 
@@ -76,7 +73,8 @@ void config_BT()
   }
 
   // Wait for the HC-05 to respond.
-  while (!BT.available());
+  while (!BT.available())
+    ;
 
   // Read the response.
   static uint8_t rx_buffer[128];
@@ -84,7 +82,7 @@ void config_BT()
 
   // Put the HC-05 in normal mode.
   pinMode(GPIO_BT_RESET_SIGNAL, INPUT);
-  pinMode(GPIO_BT_CONF_BUTTON, OUTPUT); // Config is left as an output?
+  pinMode(GPIO_BT_CONF_BUTTON, OUTPUT);  // Config is left as an output?
   digitalWrite(GPIO_BT_CONF_BUTTON, LOW);
   delay(BT_TIMEOUT_MS);
 
@@ -95,13 +93,11 @@ void config_BT()
   DEBUG("Bluetooth done pairing");
 }
 
-bool bt_send_status(void *params)
-{
+bool bt_send_status(void *params) {
   static bt_packet_t packet;
 
   // Update the Bluetooth screen.
-  if (connected_to_bluetooth_screen)
-  {
+  if (connected_to_bluetooth_screen) {
     // Fill the packet with data.
     packet.len = 10;
     packet.data[0] = APP_MSG_STATUS;
@@ -117,10 +113,7 @@ bool bt_send_status(void *params)
 
     // Send the packet.
     BT.write(packet.data, packet.len);
-  }
-  // Update the Bluetooth app.
-  else
-  {
+  } else {  // Update the Bluetooth app.
     // Fill the packet with data.
     packet.len = 6;
     packet.data[0] = APP_MSG_STATUS;
@@ -131,14 +124,12 @@ bool bt_send_status(void *params)
     packet.data[5] = BT_PACKET_END_BYTE;
 
     // If any of the bytes (except for the last byte) looks like the "packet end" byte, change them.
-    for (uint8_t i = 0; i < packet.len - 1; i++)
-    {
-      if (packet.data[i] == BT_PACKET_END_BYTE)
-      {
+    for (uint8_t i = 0; i < packet.len - 1; i++) {
+      if (packet.data[i] == BT_PACKET_END_BYTE) {
         packet.data[i]--;
       }
     }
-    
+
     // Send the packet.
     BT.write(packet.data, packet.len);
   }
@@ -146,25 +137,21 @@ bool bt_send_status(void *params)
   return true;
 }
 
-void parse_bt_packet(const bt_packet_t &rx_packet)
-{
+void parse_bt_packet(const bt_packet_t &rx_packet) {
   // Store the current time, to be able to gauge whether the Bluetooth connection is active.
   last_bt_transmission_ms = millis();
 
   // Parse the packet depending on the message type (first byte).
-  switch (rx_packet.data[0])
-  {
+  switch (rx_packet.data[0]) {
     // Got a request to change the current mode
     case APP_MSG_MODE:
       {
         // If the requested mode is valid, apply it.
-        if (rx_packet.data[1] < (uint8_t)openhaldex_mode_t_MAX)
-        {
+        if (rx_packet.data[1] < (uint8_t)openhaldex_mode_t_MAX) {
           state.mode = (openhaldex_mode_t)rx_packet.data[1];
         }
         // For invalid values, fall back to STOCK mode.
-        else
-        {
+        else {
           state.mode = MODE_STOCK;
         }
 
@@ -172,26 +159,21 @@ void parse_bt_packet(const bt_packet_t &rx_packet)
         state.pedal_threshold = rx_packet.data[2];
 
         // In FWD mode, reset the lock target.
-        if (state.mode == MODE_FWD)
-        {
+        if (state.mode == MODE_FWD) {
           lock_target = 0;
         }
 
         // If the phone app requested CUSTOM mode, lockpoints will be sent, so the mode is available.
-        if (state.mode == MODE_CUSTOM)
-        {
+        if (state.mode == MODE_CUSTOM) {
           custom_mode_available = true;
-        }
-        else
-        {
+        } else {
           custom_mode_available = false;
         }
         reset_CAN();
 
         DEBUG("[APP_MSG_MODE] Mode:%s, PedalThreshold:%d",
               get_openhaldex_mode_string(state.mode),
-              state.pedal_threshold
-             );
+              state.pedal_threshold);
       }
       break;
 
@@ -200,20 +182,17 @@ void parse_bt_packet(const bt_packet_t &rx_packet)
       {
         // Ensure the specified array index is valid.
         uint8_t custom_lockpoint_index = rx_packet.data[1];
-        if (custom_lockpoint_index < CUSTOM_LOCK_POINTS_MAX_COUNT)
-        {
+        if (custom_lockpoint_index < CUSTOM_LOCK_POINTS_MAX_COUNT) {
           // Store the received data.
           state.custom_mode.lockpoints[custom_lockpoint_index].speed = rx_packet.data[2];
           state.custom_mode.lockpoints[custom_lockpoint_index].lock = rx_packet.data[3];
           state.custom_mode.lockpoints[custom_lockpoint_index].intensity = rx_packet.data[4];
 
           // Set the bit corresponding to the lockpoint in the bitfield.
-          if (custom_lockpoint_index > 6) // why is the MSB unused in the low byte?
+          if (custom_lockpoint_index > 6)  // why is the MSB unused in the low byte?
           {
             state.custom_mode.lockpoint_bitfield_high_byte |= (1 << (custom_lockpoint_index - 7));
-          }
-          else
-          {
+          } else {
             state.custom_mode.lockpoint_bitfield_low_byte |= (1 << custom_lockpoint_index);
           }
 
@@ -224,8 +203,7 @@ void parse_bt_packet(const bt_packet_t &rx_packet)
                 custom_lockpoint_index,
                 state.custom_mode.lockpoint_bitfield_high_byte,
                 state.custom_mode.lockpoint_bitfield_low_byte,
-                state.custom_mode.lockpoint_count
-               );
+                state.custom_mode.lockpoint_count);
         }
       }
       break;
@@ -234,8 +212,7 @@ void parse_bt_packet(const bt_packet_t &rx_packet)
     case APP_MSG_CUSTOM_CTRL:
       {
         static bt_packet_t tx_packet;
-        switch (rx_packet.data[1])
-        {
+        switch (rx_packet.data[1]) {
           // Got a request to check the defined lockpoints
           case DATA_CTRL_CHECK_LOCKPOINTS:
             tx_packet.len = 5;
@@ -246,12 +223,12 @@ void parse_bt_packet(const bt_packet_t &rx_packet)
             tx_packet.data[4] = BT_PACKET_END_BYTE;
             BT.write(tx_packet.data, tx_packet.len);
             break;
-          
+
           // Got a request to clear the custom mode (lockpoints)
           case DATA_CTRL_CLEAR:
             memset(&state.custom_mode, 0, sizeof(state.custom_mode));
             break;
-          
+
           // Got a request to check the current mode
           case DATA_CTRL_CHECK_MODE:
             tx_packet.len = 5;
