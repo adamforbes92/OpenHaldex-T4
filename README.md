@@ -1,16 +1,15 @@
 # OpenHaldex - Teensy 4.0
 
-An open-source Generation 1, 2 & 4 Haldex Controller which originates/is a fork from ABangingDonk's 'OpenHaldex T4'.  
+An open-source Generation 1, 2 & 4 Haldex Controller which originates/is a fork from ABangingDonk's 'OpenHaldex T4'.  It has been extended into Gen2 and Gen4 variants, with Gen3 and Gen5 currently unsupported.
 
 ### Concept
-The basis of the module is to act as a middle man - read the incoming CAN frames destined for the OEM Haldex controller, and if required, adjust these messages to 'trick' the Haldex into thinking more (or less) lock is required.  
+The basis of the module is to act as a middle man - read the incoming CAN frames destined for the OEM Haldex controller, and, if required, adjust these messages to 'trick' the Haldex into thinking more (or less) lock is required.  
 
 ### Teensy 4.0
 The Teensy 4.0 microcontroller allows for two CAN streams with the use of the 'FlexCAN_T4' library.  Future boards are looking to move to ESP32 as this allows Apple support.
 
 ### The Modes
-
-The controller allows for 3 main modes: Stock (act as OEM), FWD, 7535 (some slippage) and a 100% lockup at the Haldex.  Both Generation 1 & Generation 2 has been tested on the bench to allow for a full understanding of what the stock CAN messages look like & therefore what messages need to be editted / created. 
+The controller allows for 4 main modes: Stock (act as OEM), FWD (zero lock), 7525 (some lock) and 5050 (100% lock) at the Haldex differential.  Generation 1, 2 and 4 have been tested on the bench to allow for a full understanding of what the stock CAN messages look like & therefore what messages need to be editted / created. 
 
 The forked code has been tweaked to support the remote screen, standalone modes (so conversations/swaps into non-CANBUS) as well as Gen2 & Gen4 support.
 
@@ -31,7 +30,7 @@ V3 enclosure moved to an onboard connector which results in a smaller footprint 
 >Pinout & functionality remains the same for ALL generations of enclosure.
 
 ### Nice to Haves
-The board supports Haldex output via. CAN - which allows pairing with the FIS controller to capture (and received) current and new modes.
+The board supports broadcasting the Haldex output via. CAN - which allows pairing with the FIS controller to capture (and received) current and new modes.
 
 Flashing LED if there is an issue with writing CAN messages.
 
