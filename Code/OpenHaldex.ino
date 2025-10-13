@@ -14,13 +14,13 @@ Version History:
 */
 
 // Settings
-#define HALDEX_GENERATION 1      // define number variable for generation.  Either 1, 2, 4.  3 (Volvo) and 5 (VW) unsupported AT THE MOMENT
+#define HALDEX_GENERATION 4      // define number variable for generation.  Either 1, 2, 4.  3 (Volvo) and 5 (VW) unsupported AT THE MOMENT
 #define SOFTWARE_VERSION 0x006C  // 0.108
 #define BROADCAST_OPENHALDEX     // For FIS/aftermarket ECU/etc support.  Broadcasts OpenHaldex (& Haldex) data via. 0x6B0.  Comment out to disable - may conflict with other modules, confirm first(!)
 
 // Debug (comment out to disable)
-#define ENABLE_DEBUG  // Enable Serial debug.  Comment out to disable
-//#define DEBUG_HALDEXCAN_TRAFFIC   // Enable printing of Haldex CAN Traffic.  Comment out to disable
+//#define ENABLE_DEBUG             // Enable Serial debug.  Comment out to disable
+//#define DEBUG_HALDEXCAN_TRAFFIC  // Enable printing of Haldex CAN Traffic.  Comment out to disable
 //#define DEBUG_CHASSISCAN_TRAFFIC  // Enable printing of Chassis CAN Traffic.  Comment out to disable
 
 // Files
@@ -37,7 +37,7 @@ Version History:
 #include <arduino-timer.h>
 auto timer = timer_create_default();
 
-bool print_current_mode(void *params) { // print the current mode & Haldex data in Serial
+bool print_current_mode(void *params) {  // print the current mode & Haldex data in Serial
   DEBUG("Mode: %s", get_openhaldex_mode_string(state.mode));
   DEBUG("    Raw haldexEngagement: %d", received_haldex_state);
 
@@ -79,15 +79,27 @@ void setup() {
   DEBUG("Initialise EEPROM...");
   init_EEPROM();  // initialise EEPROM on Teensy (for reading last saved settings)
 
-  timer.every(2500, bt_send_status);     // Update the Bluetooth connection every 2.5 seconds
-  timer.every(2500, update_EEPROM);      // Update the values stored in EEPROM every 2.5 seconds
+  timer.every(2500, bt_send_status);  // Update the Bluetooth connection every 2.5 seconds
+  timer.every(2500, update_EEPROM);   // Update the values stored in EEPROM every 2.5 seconds
+
   timer.every(20, send_standalone_CAN);  // Emulate CAN frames for Standalone mode (if enabled).  May require multiple variants if Haldex expects frames in xx times(!)
 
+#if (HALDEX_GENERATION == 4)
+  if (in_standalone_mode) {
+    timer.every(10, frames10);      // Emulate CAN frames for Standalone mode (if enabled)
+    timer.every(20, frames20);      // Emulate CAN frames for Standalone mode (if enabled)
+    timer.every(25, frames25);      // Emulate CAN frames for Standalone mode (if enabled)
+    timer.every(100, frames100);    // Emulate CAN frames for Standalone mode (if enabled)
+    timer.every(200, frames200);    // Emulate CAN frames for Standalone mode (if enabled)
+    timer.every(1000, frames1000);  // Emulate CAN frames for Standalone mode (if enabled)
+  }
+#endif
+
   DEBUG("Initialise GPIO...");
-  init_GPIO(); // initialise buttons, LED etc
+  init_GPIO();  // initialise buttons, LED etc
 
   DEBUG("Initialise Bluetooth...");
-  BT.begin(19200); // speed to match LCD screen.  Phone app doesn't care.
+  BT.begin(19200);  // speed to match LCD screen.  Phone app doesn't care.
 
 #ifdef ENABLE_DEBUG
   timer.every(1000, print_current_mode);  // display the current mode every second.

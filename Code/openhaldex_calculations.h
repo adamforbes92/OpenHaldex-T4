@@ -185,13 +185,13 @@ void get_lock_data(CAN_message_t &frame) {
       }
       break;
     case MOTOR1_ID:
-      //frame.buf[1] = 0xFE;                                         // MDNORM no effect x
-      //frame.buf[2] = 0x20;                                         // RPM low byte no effect was 0x20
+      frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);  // has effect
+      frame.buf[2] = get_lock_target_adjusted_value(0x20, false);  // RPM low byte no effect was 0x20
       frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);  // RPM high byte.  Will disable pre-charge pump if 0x00.  Sets raw = 8, coupling open
-      //frame.buf[4] = 0xFE;                                         // MDNORM no effect
-      //frame.buf[5] = 0xFE;                                         // Pedal no effect
-      frame.buf[6] = get_lock_target_adjusted_value(0x20, false);                                         // idle adaptation?  Was slippage?
-      frame.buf[7] = get_lock_target_adjusted_value(0xFE, false);                                         // Fahrerwunschmoment req. torque?
+      frame.buf[4] = get_lock_target_adjusted_value(0xFE, false);  // MDNORM no effect
+      frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // Pedal no effect
+      frame.buf[6] = get_lock_target_adjusted_value(0x16, false);  // idle adaptation?  Was slippage?
+      frame.buf[7] = get_lock_target_adjusted_value(0xFE, false);  // Fahrerwunschmoment req. torque?
       break;
     case MOTOR3_ID:
       //frame.buf[2] = get_lock_target_adjusted_value(0xFE, false);
@@ -200,32 +200,23 @@ void get_lock_data(CAN_message_t &frame) {
     case MOTOR6_ID:
       break;
     case BRAKES1_ID:
-      frame.buf[0] = 0x20;  // ASR 0x04 sets bit 4.  0x08 removes set.  Coupling open/closed
-      frame.buf[1] = 0x40;  // can use to disable (>130 dec).  Was 0x00; 0x41?  0x43?
-      frame.buf[2] = 0xF0;  // was 0x00 no effect
-      frame.buf[3] = 0x07;  // was 0xFE no effect
-      frame.buf[4] = 0xFE;  // was 0xFE miasrl no effect
-      frame.buf[5] = 0xFE;  // was 0xFE miasrs no effect
-      frame.buf[6] = 0x00;  // was 0x00
+      frame.buf[0] = 0x20;                                         // ASR 0x04 sets bit 4.  0x08 removes set.  Coupling open/closed
+      frame.buf[1] = 0x40;                                         // can use to disable (>130 dec).  Was 0x00; 0x41?  0x43?
+      frame.buf[4] = get_lock_target_adjusted_value(0xFE, false);  // was 0xFE miasrl no effect
+      frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // was 0xFE miasrs no effect
       break;
     case BRAKES2_ID:
-      frame.buf[0] = 0x80;                                         // various bits // was 7E
-      frame.buf[1] = 0x7A;                                         // outside temp no effect
-      //frame.buf[2] = 0x05;                                         // Pedal no effect
       frame.buf[4] = get_lock_target_adjusted_value(0x7F, false);  // big affect(!) 0x7F is max
-      //frame.buf[5] = 0xCA;                                         // no effect.  Was 0x6E
-      frame.buf[6] = 0x1B;                                         // no effect.  Was 0x70 - can cause 'Operating Mode Malfunction'(!) Includes Emergency Mode and Control Module Error
-      frame.buf[7] = 0xAB;                                         // no effect.  gen1 is FE, Gen4 is 01 was AB - can cause 'Operating Mode Malfunction'(!)
       break;
     case BRAKES3_ID:
-      frame.buf[0] = 0xB6;  // front left low
-      frame.buf[1] = 0x07;  // front left high
-      frame.buf[2] = 0xCC;  // front right low
-      frame.buf[3] = 0x07;  // front right high
+      frame.buf[0] = get_lock_target_adjusted_value(0xB6, false);  // front left low
+      frame.buf[1] = 0x07;                                         // front left high
+      frame.buf[2] = get_lock_target_adjusted_value(0xCC, false);  // front right low
+      frame.buf[3] = 0x07;                                         // front right high
       frame.buf[4] = get_lock_target_adjusted_value(0xD2, false);  // rear left low
-      frame.buf[5] = 0x07;  // rear left high
+      frame.buf[5] = 0x07;                                         // rear left high
       frame.buf[6] = get_lock_target_adjusted_value(0xD2, false);  // rear right low
-      frame.buf[7] = 0x07;  // rear right high
+      frame.buf[7] = 0x07;                                         // rear right high
       break;
 
     case BRAKES4_ID:

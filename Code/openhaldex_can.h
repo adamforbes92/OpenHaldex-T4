@@ -187,7 +187,7 @@ void onHaldexRX(const CAN_message_t &frame) {
 
       case 4:
         received_haldex_state = frame.buf[0];
-        received_haldex_engagement = map(frame.buf[1], 0, 255, 0, 100);
+        received_haldex_engagement = map(frame.buf[1], 128, 255, 0, 100);
 
         // Decode the state byte.
         received_report_clutch1 = (received_haldex_state & (1 << 0));
@@ -648,15 +648,54 @@ void send_standalone_frame_Gen2() {
 }
 
 void send_standalone_frame_Gen4() {
-  //send_standalone_frame_Gen2();
-  //20ms frames
-
 #if (HALDEX_GENERATION == 4)
   lock_target = get_lock_target_adjustment();
   if (state.mode == MODE_7525) {
     lock_target = 30;
   }
+#endif
+}
 
+bool send_standalone_CAN(void *params) {
+  // Don't send Standalone messages if not in Standalone mode.  Remember there is a 20ms timer always active regardless (since standalone can be switched at runtime)
+  if (!in_standalone_mode) {
+    return true;
+  }
+
+  if (state.mode == MODE_FWD || state.mode == MODE_5050 || state.mode == MODE_7525) {
+    switch (HALDEX_GENERATION) {
+      case 1:
+        send_standalone_frame_Gen1();
+        break;
+      case 2:
+        send_standalone_frame_Gen2();
+        break;
+      case 4:
+        send_standalone_frame_Gen4();
+        break;
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+bool reset_CAN() {
+  // Gen2 doesn't like a missing CAN message, so disable, allow bus to rest for 500ms and restart.
+  // todo: look into understanding WHAT the issue is here...
+  if (HALDEX_GENERATION == 2) {
+    HaldexCAN.reset();
+    ChassisCAN.reset();
+    delay(500);
+    init_CAN();
+  }
+  return true;
+}
+
+bool frames10(void *params) {
+#if (HALDEX_GENERATION == 4)
+  // Get initial lock target.
+  /* checksum the same as Gen4 - plausibilty okay*/
   CAN_message_t frame;
   frame.id = mLW_1;                        // electronic power steering 0x0C2
   frame.len = 8;                           // DLC 8
@@ -668,26 +707,27 @@ void send_standalone_frame_Gen4() {
   frame.buf[5] = lws_2[mLW_1_counter][5];  // no effect F
   frame.buf[6] = lws_2[mLW_1_counter][6];  // no effect F
   frame.buf[7] = lws_2[mLW_1_counter][7];  // no effect F
+
   mLW_1_counter++;
   if (mLW_1_counter > 15) {
     mLW_1_counter = 0;
   }
   HaldexCAN.write(frame);
 
-  frame.id = BRAKES1_ID;           // 0x1A0
-  frame.len = 8;                   // DLC 8
-  frame.buf[0] = 0x20;             // ASR 0x04 sets bit 4.  0x08 removes set.  Coupling open/closed
-  frame.buf[1] = 0x40;             // can use to disable (>130 dec).  Was 0x00; 0x41?  0x43?
-  frame.buf[2] = 0xF0;             // was 0x00 no effect
-  frame.buf[3] = 0x07;             // was 0xFE no effect
-  frame.buf[4] = 0xFE;             // was 0xFE miasrl no effect
-  frame.buf[5] = 0xFE;             // was 0xFE miasrs no effect
-  frame.buf[6] = 0x00;             // was 0x00
-  frame.buf[7] = BRAKES1_counter;  // checksum
+  frame.id = BRAKES1_ID;                                       // 0x1A0
+  frame.len = 8;                                               // DLC 8
+  frame.buf[0] = 0x20;                                         // ASR 0x04 sets bit 4.  0x08 removes set.  Coupling open/closed
+  frame.buf[1] = 0x40;                                         // can use to disable (>130 dec).  Was 0x00; 0x41?  0x43?
+  frame.buf[2] = 0xF0;                                         // was 0x00 no effect
+  frame.buf[3] = 0x07;                                         // was 0xFE no effect
+  frame.buf[4] = get_lock_target_adjusted_value(0xFE, false);  // was 0xFE miasrl no effect
+  frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // was 0xFE miasrs no effect
+  frame.buf[6] = 0x00;                                         // was 0x00
+  frame.buf[7] = BRAKES1_counter;                              // checksum
+  HaldexCAN.write(frame);
   if (++BRAKES1_counter > 0x1F) {  // 0xF
     BRAKES1_counter = 10;          // 0
   }
-  HaldexCAN.write(frame);
 
   /*
   Bremse 3 has massive effect - deviation between front/rear = block 011 'rpm changing'
@@ -696,9 +736,9 @@ void send_standalone_frame_Gen4() {
   */
   frame.id = BRAKES3_ID;                                       // 0x4A0 - deviation between front/rear = block 011 'rpm'
   frame.len = 8;                                               // DLC 8
-  frame.buf[0] = 0xB6;                                         // front left low
+  frame.buf[0] = get_lock_target_adjusted_value(0xB6, false);  // front left low
   frame.buf[1] = 0x07;                                         // front left high
-  frame.buf[2] = 0xCC;                                         // front right low
+  frame.buf[2] = get_lock_target_adjusted_value(0xCC, false);  // front right low
   frame.buf[3] = 0x07;                                         // front right high
   frame.buf[4] = get_lock_target_adjusted_value(0xD2, false);  // rear left low
   frame.buf[5] = 0x07;                                         // rear left high
@@ -750,80 +790,22 @@ void send_standalone_frame_Gen4() {
   frame.id = MOTOR1_ID;  // 0x280 - needs this
   frame.len = 8;
   frame.buf[0] = 0x01;                                         // various bits no effect 0x08
-  frame.buf[1] = 0xFE;                                         // MDNORM no effect x
-  frame.buf[2] = 0x20;                                         // RPM low byte no effect was 0x20
+  frame.buf[1] = get_lock_target_adjusted_value(0xFE, false);  // has effect
+  frame.buf[2] = get_lock_target_adjusted_value(0x20, false);  // RPM low byte no effect was 0x20
   frame.buf[3] = get_lock_target_adjusted_value(0x4E, false);  // RPM high byte.  Will disable pre-charge pump if 0x00.  Sets raw = 8, coupling open
-  frame.buf[4] = 0xFE;                                         // MDNORM no effect
-  frame.buf[5] = 0xFE;                                         // Pedal no effect
-  frame.buf[6] = get_lock_target_adjusted_value(0x20, false);  // idle adaptation?  Was slippage?
+  frame.buf[4] = get_lock_target_adjusted_value(0xFE, false);  // MDNORM no effect
+  frame.buf[5] = get_lock_target_adjusted_value(0xFE, false);  // Pedal no effect
+  frame.buf[6] = get_lock_target_adjusted_value(0x16, false);  // idle adaptation?  Was slippage?
   frame.buf[7] = get_lock_target_adjusted_value(0xFE, false);  // Fahrerwunschmoment req. torque?
   HaldexCAN.write(frame);
+#endif
 
-  /*
-  frame.id = MOTOR3_ID;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x20;  // various bits
-  frame.buf[1] = 0x84;  // outside temp
-  frame.buf[2] = 0xFE;  //Pedal
-  frame.buf[3] = 0xFE;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0xFE;  //Pedal
-  frame.buf[5] = 0xFE;  //Pedal
-  frame.buf[6] = 0x00;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x00;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
+  return true;
+}
 
-  frame.id = MOTOR6_ID;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x6A;             // various bits
-  frame.buf[1] = 0x11;             // outside temp
-  frame.buf[2] = 0x0F;             //Pedal
-  frame.buf[3] = 0x7A;             //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0xFE;             //Pedal
-  frame.buf[5] = 0xFF;             //Pedal
-  frame.buf[6] = 0xFF;             // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = MOTOR6_counter2;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-  MOTOR6_counter = MOTOR6_counter - 16;
-  if (MOTOR6_counter < 0x0E) {
-    MOTOR6_counter = 254;  // there is a sum here!
-  }
-  MOTOR6_counter2 = MOTOR6_counter2 + 16;
-  if (MOTOR6_counter2 > 0xF0) {
-    MOTOR6_counter2 = 0;
-  }
-
-  // added in:
-  frame.id = 0x1AC;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x1C;  // various bits
-  frame.buf[1] = 0x03;  // outside temp
-  frame.buf[2] = 0x00;  //Pedal
-  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0x0C;  //Pedal
-  frame.buf[5] = 0x01;  //Pedal
-  frame.buf[6] = 0x00;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x12;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-  */
-
-  /*
-  frame.id = BRAKES10_ID;           // 0x3A0
-  frame.len = 8;                    // DLC 8
-  frame.buf[0] = tempCounter2;      // no effect
-  frame.buf[1] = BRAKES10_counter;  // checksum
-  frame.buf[2] = tempCounter2;      // no effect
-  frame.buf[3] = tempCounter2;      // no effect
-  frame.buf[4] = tempCounter2;      // no effect
-  frame.buf[5] = tempCounter2;      // no effect
-  frame.buf[6] = tempCounter2;      // no effect
-  frame.buf[7] = tempCounter2;      // no effect
-  HaldexCAN.write(frame);
-  BRAKES10_counter = BRAKES10_counter + 1;
-  if (BRAKES10_counter > 0xF) {
-    BRAKES10_counter = 0;
-  }
-  */
-
+bool frames20(void *params) {
+#if (HALDEX_GENERATION == 4)
+  CAN_message_t frame;
   frame.id = BRAKES2_ID;                                       // 0x5A0
   frame.len = 8;                                               // DLC 8
   frame.buf[0] = 0x80;                                         // various bits // was 7E
@@ -839,150 +821,14 @@ void send_standalone_frame_Gen4() {
   if (BRAKES2_counter > 0xF0) {
     BRAKES2_counter = 0;
   }
+#endif
 
-  /*
-  frame.id = BRAKES5_ID;  // 0x4A8 EPB, ESP? wants to see this
-  frame.len = 8;
-  frame.buf[0] = 0x48;              // no effect
-  frame.buf[1] = 0x00;              // no effect
-  frame.buf[2] = 0x07;              // no effect
-  frame.buf[3] = 0x80;              // no effect
-  frame.buf[4] = 0x00;              // no effect
-  frame.buf[5] = 0x00;              // no effect
-  frame.buf[6] = BRAKES5_counter;   // checksum
-  frame.buf[7] = BRAKES5_counter2;  // no checksum?
-  HaldexCAN.write(frame);
-  BRAKES5_counter = BRAKES5_counter + 16;
-  if (BRAKES5_counter > 0xF4) {
-    BRAKES5_counter = 0x04;
-  }
-  BRAKES5_counter2 = BRAKES5_counter2 + 10;
-  if (BRAKES5_counter2 > 0xF3) {
-    BRAKES5_counter2 = 3;
-  }
+  return true;
+}
 
-  frame.id = BRAKES8_ID;           // 0x4A0 - deviation between front/rear = block 011 'rpm'
-  frame.len = 8;                   // DLC 8
-  frame.buf[0] = 0x1C;             // front left low
-  frame.buf[1] = BRAKES8_counter;  // front left high
-  frame.buf[2] = 0x00;             // front right low
-  frame.buf[3] = 0x00;             // front right high
-  frame.buf[4] = 0x0C;             // rear left low
-  frame.buf[5] = 0x01;             // rear left high
-  frame.buf[6] = 0x00;             // rear right low
-  frame.buf[7] = 0x12;             // rear right high
-  HaldexCAN.write(frame);
-  BRAKES8_counter = BRAKES8_counter + 16;
-  if (BRAKES8_counter > 0xF0) {
-    BRAKES8_counter = 0x00;
-  }
-
-  frame.id = MOTOR2_ID;  // needs this - just fill with default data
-  frame.len = 8;
-  frame.buf[0] = 0x00;  // no effect mux code
-  frame.buf[1] = 0x30;  // no effect motor temperature
-  frame.buf[2] = 0x20;  // bremse - does affect (coupling open etc)
-  frame.buf[3] = 0x00;  // no effect speed (act)
-  frame.buf[4] = 0x00;  // no effect speed (cruise?)
-  frame.buf[5] = 0x00;  // no effect idle rpm
-  frame.buf[6] = 0xFA;  // no effect torque
-  frame.buf[7] = 0xFA;  //no effect torque
-  HaldexCAN.write(frame);
-
-  frame.id = MOTOR5_ID;  // 0x480 needs this - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x84;  // no effect max torque
-  frame.buf[1] = 0x20;  // no effect epc, eml,
-  frame.buf[2] = 0xDF;  // no effect
-  frame.buf[3] = 0x62;  // no effect
-  frame.buf[4] = 0x55;  // no effect tvluesic PWM interface?
-  frame.buf[5] = 0x00;  // no effect
-  frame.buf[6] = 0x02;  // no effect
-  frame.buf[7] = 0x4E;  // no effect checksum
-  HaldexCAN.write(frame);
-  if (++MOTOR5_counter > 255) {
-    MOTOR5_counter = 0;
-  }
-
-  frame.id = MOTOR7_ID;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0xE8;  // various bits
-  frame.buf[1] = 0x6C;  // outside temp
-  frame.buf[2] = 0x7A;  //Pedal
-  frame.buf[3] = 0x89;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0x00;  //Pedal
-  frame.buf[5] = 0x01;  //Pedal
-  frame.buf[6] = 0x04;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x8C;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-
-  frame.id = mLenkhilfe_1;  // doesn't throw code with this out - no effect on any block
-  frame.len = 6;
-  frame.buf[0] = 0x00;  // various bits
-  frame.buf[1] = 0x00;  // outside temp
-  frame.buf[2] = 0x08;  //Pedal
-  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0xC8;  //Pedal
-  frame.buf[5] = 0x69;  //Pedal
-  HaldexCAN.write(frame);
-
-  frame.id = 0x0D0;  // doesn't throw code with this out - no effect on any block
-  frame.len = 6;
-  frame.buf[0] = 0x03;  // various bits
-  frame.buf[1] = 0xF5;  // outside temp
-  frame.buf[2] = 0x08;  //Pedal
-  frame.buf[3] = 0x38;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0x26;  //Pedal
-  frame.buf[5] = 0xE0;  //Pedal
-  HaldexCAN.write(frame);
-
-  frame.id = 0x448;  // doesn't throw code with this out - no effect on any block
-  frame.len = 5;
-  frame.buf[0] = 0x52;  // various bits
-  frame.buf[1] = 0x00;  // outside temp
-  frame.buf[2] = 0x00;  //Pedal
-  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0xA0;  //Pedal
-  HaldexCAN.write(frame);
-
-  frame.id = 0x440;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x00;  // various bits
-  frame.buf[1] = 0x52;  // outside temp
-  frame.buf[2] = 0x5D;  //Pedal
-  frame.buf[3] = 0xFE;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0x7F;  //Pedal
-  frame.buf[5] = 0x00;  //Pedal
-  frame.buf[6] = 0x80;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x03;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-
-  frame.id = 0x540;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x05;  // various bits
-  frame.buf[1] = 0x00;  // outside temp
-  frame.buf[2] = 0xFF;  //Pedal
-  frame.buf[3] = 0x00;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0xFF;  //Pedal
-  frame.buf[5] = 0x00;  //Pedal
-  frame.buf[6] = 0x02;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x56;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-
-  frame.id = 0x594;  // doesn't throw code with this out - no effect on any block
-  frame.len = 8;
-  frame.buf[0] = 0x4D;  // various bits
-  frame.buf[1] = 0x19;  // outside temp
-  frame.buf[2] = 0x5A;  //Pedal
-  frame.buf[3] = 0xA8;  //get_lock_target_adjusted_value(0xFE, false);  //Pedal
-  frame.buf[4] = 0x59;  //Pedal
-  frame.buf[5] = 0xFE;  //Pedal
-  frame.buf[6] = 0x7A;  // 100 in dec, *25 = 2500rpm was 0x64
-  frame.buf[7] = 0x7B;  // gen1 is FE, Gen4 WAS 01
-  HaldexCAN.write(frame);
-  */
-
-  // 25ms frames
+bool frames25(void *params) {
+#if (HALDEX_GENERATION == 4)
+  CAN_message_t frame;
   frame.id = mKombi_1;  // kombi 1
   frame.len = 8;        // DLC 8
   frame.buf[0] = 0x24;  // angle of turn (block 011) low byte
@@ -1006,22 +852,14 @@ void send_standalone_frame_Gen4() {
   frame.buf[6] = 0x03;  // rate of change (block 010)
   frame.buf[7] = 0x02;  // rate of change (block 010)
   HaldexCAN.write(frame);
+#endif
 
-  /*
-  frame.id = 0x394;     // electronic power steering 0x0C2
-  frame.len = 8;        // DLC 8
-  frame.buf[0] = 0x0F;  // angle of turn (block 011) low byte
-  frame.buf[1] = 0x14;  // no effect B high byte
-  frame.buf[2] = 0x7F;  // no effect C
-  frame.buf[3] = 0xE0;  // no effect D
-  frame.buf[4] = 0x7D;  // rate of change (block 010)
-  frame.buf[5] = 0xD0;  // rate of change (block 010) checksum?
-  frame.buf[6] = 0x00;  // rate of change (block 010)
-  frame.buf[7] = 0x90;  // rate of change (block 010)
-  HaldexCAN.write(frame);
-  */
+  return true;
+}
 
-  // 100ms frames
+bool frames100(void *params) {
+#if (HALDEX_GENERATION == 4)
+  CAN_message_t frame;
   frame.id = mGate_Komf_1;  // electronic power steering 0x0C2
   frame.len = 8;            // DLC 8
   frame.buf[0] = 0x03;      // angle of turn (block 011) low byte
@@ -1081,8 +919,14 @@ void send_standalone_frame_Gen4() {
   frame.buf[6] = 0x00;     // no effect
   frame.buf[7] = 0x00;     // no effect
   HaldexCAN.write(frame);
+#endif
 
-  // 200ms frames
+  return true;
+}
+
+bool frames200(void *params) {
+#if (HALDEX_GENERATION == 4)
+  CAN_message_t frame;
   frame.id = mKombi_2;  // electronic power steering 0x0C2
   frame.len = 8;        // DLC 8
   frame.buf[0] = 0x4C;  // angle of turn (block 011) low byte
@@ -1117,8 +961,14 @@ void send_standalone_frame_Gen4() {
   frame.buf[5] = 0x00;     // rate of change (block 010)
   frame.buf[6] = 0x00;     // rate of change (block 010)
   HaldexCAN.write(frame);
+#endif
 
-  // 1000ms frames
+  return true;
+}
+
+bool frames1000(void *params) {
+#if (HALDEX_GENERATION == 4)
+  CAN_message_t frame;
   frame.id = mDiagnose_1;              // electronic power steering 0x0C2
   frame.len = 8;                       // DLC 8
   frame.buf[0] = 0x26;                 // angle of turn (block 011) low byte
@@ -1135,42 +985,9 @@ void send_standalone_frame_Gen4() {
     mDiagnose_1_counter = 0;
   }
 #endif
-}
 
-bool send_standalone_CAN(void *params) {
-  // Don't send Standalone messages if not in Standalone mode.  Remember there is a 20ms timer always active regardless (since standalone can be switched at runtime)
-  if (!in_standalone_mode) {
-    return true;
-  }
-
-  if (state.mode == MODE_FWD || state.mode == MODE_5050 || state.mode == MODE_7525) {
-    switch (HALDEX_GENERATION) {
-      case 1:
-        send_standalone_frame_Gen1();
-        break;
-      case 2:
-        send_standalone_frame_Gen2();
-        break;
-      case 4:
-        send_standalone_frame_Gen4();
-        break;
-      default:
-        break;
-    }
-  }
-  return false;
-}
-
-bool reset_CAN() {
-  // Gen2 doesn't like a missing CAN message, so disable, allow bus to rest for 500ms and restart.
-  // todo: look into understanding WHAT the issue is here...
-  if (HALDEX_GENERATION == 2) {
-    HaldexCAN.reset();
-    ChassisCAN.reset();
-    delay(500);
-    init_CAN();
-  }
   return true;
 }
+
 
 #endif
